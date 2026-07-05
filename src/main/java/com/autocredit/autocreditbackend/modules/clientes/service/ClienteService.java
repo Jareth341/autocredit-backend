@@ -3,6 +3,7 @@ package com.autocredit.autocreditbackend.modules.clientes.service;
 import com.autocredit.autocreditbackend.core.exception.DuplicateResourceException;
 import com.autocredit.autocreditbackend.core.exception.ResourceNotFoundException;
 import com.autocredit.autocreditbackend.modules.autenticacion.entity.Usuario;
+import com.autocredit.autocreditbackend.modules.autenticacion.enums.Rol;
 import com.autocredit.autocreditbackend.modules.clientes.dto.ClienteFormDTO;
 import com.autocredit.autocreditbackend.modules.clientes.dto.ClienteListItemDTO;
 import com.autocredit.autocreditbackend.modules.clientes.entity.Cliente;
@@ -28,6 +29,10 @@ public class ClienteService {
     private final CreditoService creditoService;
     private final SimulacionService simulacionService;
     private final ComparadorService comparadorService;
+    private Rol obtenerRolUsuarioActual() {
+        Usuario usuario = (Usuario) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return usuario.getRol();
+    }
 
     public List<ClienteListItemDTO> listar(String filtro, String estado) {
         List<Cliente> clientes;
@@ -41,6 +46,15 @@ public class ClienteService {
             clientes = clienteRepository.findByEstado(EstadoCliente.valueOf(estado));
         } else {
             clientes = clienteRepository.findAll();
+        }
+
+        // Solo el Asesor financiero ve unicamente sus propios clientes.
+        // El Administrador (u otro rol con visibilidad total) ve todos.
+        if (obtenerRolUsuarioActual() == Rol.ASESOR_FINANCIERO) {
+            String idUsuarioActual = obtenerIdUsuarioActual();
+            clientes = clientes.stream()
+                    .filter(c -> c.getAsesorId().equals(idUsuarioActual))
+                    .toList();
         }
 
         return clientes.stream().map(this::aListItem).toList();
